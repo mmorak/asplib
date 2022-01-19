@@ -15,3 +15,18 @@ Compilation requirements:
 - *gcc* (Debian package gcc) tested with gcc v. 9.3.0
 - *libtool* (Debiand package libtool-bin) tested with libtool v. 2.4.6
 
+Compilation instructions (please check and adapt Makefiles first):
+
+```
+
+$ cd liblp
+$ make
+$ make install
+$ make finish
+$ cd ..
+$ cd utils
+$ make
+$ make install
+$ cd ..
+
+```
