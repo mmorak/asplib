@@ -18,7 +18,6 @@ Compilation requirements:
 Compilation instructions (please check and adapt Makefiles first):
 
 ```
-
 $ cd liblp
 $ make
 $ make install
@@ -28,5 +27,4 @@ $ cd utils
 $ make
 $ make install
 $ cd ..
-
 ```
