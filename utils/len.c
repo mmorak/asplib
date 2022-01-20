@@ -1,4 +1,4 @@
-/* liblp -- ASPTOOLS library for the Smodels file format
+/* utils -- Basic utilities related to the Smodels file format
 
    Copyright (C) 2022 Tomi Janhunen
 
