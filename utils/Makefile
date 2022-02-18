@@ -19,9 +19,6 @@ len:		len.o
 lplist:		lplist.o
 		$(CC) lplist.o -o lplist $(LDFLAGS)
 
-lpreify:	lpreify.o
-		$(CC) lpreify.o -o lpreify $(LDFLAGS)
-
 lpstrip:	lpstrip.o
 		$(CC) lpstrip.o -o lpstrip $(LDFLAGS)
 
