@@ -21,11 +21,12 @@
 /*
  * Output routines for (translated) rules
  *
- * (c) 2002-2014 Tomi Janhunen
+ * (c) 2002-2023 Tomi Janhunen
  */
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "version.h"
 #include "symbol.h"
@@ -33,16 +34,18 @@
 #include "rule.h"
 #include "io.h"
 
+int priority = 0; /* Priority level for ASPIF translation */
+
 /* --------------------- Print version information ------------------------- */
 
 void _version_output_c()
 {
   _version("$RCSfile: output.c,v $",
-	   "$Date: 2021/05/27 07:55:26 $",
-	   "$Revision: 1.36 $");
+	   "$Date: 2023/02/25 13:30:11 $",
+	   "$Revision: 1.37 $");
 }
 
-/* --------------------- Output an smodels program ------------------------- */
+/* ----------------------- Output a logic program -------------------------- */
 
 void write_name(FILE *out, SYMBOL *s, char *prefix, char *postfix)
 {
@@ -68,6 +71,40 @@ void write_name(FILE *out, SYMBOL *s, char *prefix, char *postfix)
   }
 }
 
+int atomlen(int atom, ATAB *table)
+{
+  ATAB *piece = find_atom(table, atom);
+  int len = 0;
+
+  if(piece) {
+    int offset = piece->offset;
+    int shift = piece->shift;
+    SYMBOL **names = piece->names;
+    SYMBOL *name = names[atom-offset];
+
+    /* The length is calculated as if printed in STYLE_READABLE */
+
+    if(name) {
+      char *str = name->name;
+      if(str) {
+	if(piece->prefix)
+	  len += strlen(piece->prefix);
+	len += strlen(str);
+	if(piece->postfix)
+	  len += strlen(piece->postfix);
+      } else
+	len = strlen("NULL");
+    } else
+      len = 1+log10i(atom+shift); /* Preceded by underscore */
+
+  } else {
+    fprintf(stderr, "%s: entry _%i out of table\n", program_name, atom);
+    exit(-1);
+  }
+
+  return len;
+}
+
 void write_atom(int style, FILE *out, int atom, ATAB *table)
 {
   ATAB *piece = find_atom(table, atom);
@@ -90,7 +127,9 @@ void write_atom(int style, FILE *out, int atom, ATAB *table)
       break;
 
     case STYLE_SMODELS:
-      fprintf(out, " %i", atom+shift);
+      fputs(" ", out);
+    case STYLE_ASPIF:
+      fprintf(out, "%i", atom+shift);
       break;
 
     case STYLE_DLV:
@@ -155,7 +194,7 @@ void write_other_atom(int style, FILE *out, int atom, ATAB *table)
 void write_literal_list(int style, FILE *out, char *separator,
 			int pos_cnt, int *pos,
 			int neg_cnt, int *neg,
-			int *weight, ATAB *table)
+			int *weight, int ones, ATAB *table)
 {
   int *scan = NULL;
   int *last = NULL;
@@ -166,24 +205,44 @@ void write_literal_list(int style, FILE *out, char *separator,
       scan != last; ) {
     if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
       fprintf(out, "not ");
+    if(style == STYLE_ASPIF)
+      fputs("-", out);
     write_atom(style, out, *scan, table);
-    if(wscan && (style == STYLE_READABLE))
-      fprintf(out, "=%i", *(wscan++));
+    if(wscan) {
+      if(style == STYLE_READABLE)
+	fprintf(out, "=%i", *(wscan++));
+      else if(style == STYLE_ASPIF)
+	fprintf(out, " %i", *(wscan++));
+    }
+    if(style == STYLE_ASPIF && ones)
+      fputs(" 1", out);
     scan++;
     if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
       if(scan != last || pos_cnt)
 	fprintf(out, "%s", separator);
+    if(style == STYLE_ASPIF)
+      if(scan != last || pos_cnt)
+	fputs(" ", out);
   }
 
   for(scan = pos, last = &pos[pos_cnt];
       scan != last; ) {
     write_atom(style, out, *scan, table);
-    if(wscan && (style == STYLE_READABLE))
-      fprintf(out, "=%i", *(wscan++));
+    if(wscan) {
+      if (style == STYLE_READABLE)
+	fprintf(out, "=%i", *(wscan++));
+      else if(style == STYLE_ASPIF)
+	fprintf(out, " %i", *(wscan++));
+    }
+    if(style == STYLE_ASPIF && ones)
+      fputs(" 1", out);
     scan++;
     if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
       if(scan != last)
 	fprintf(out, "%s", separator);
+    if(style == STYLE_ASPIF)
+      if(scan != last)
+	fputs(" ", out);
   }
 
   if(wscan && (style == STYLE_SMODELS))
@@ -206,7 +265,9 @@ void write_basic(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, "1");
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "1 0 1 ");
+    
   write_atom(style, out, basic->head, table);
 
   pos_cnt = basic->pos_cnt;
@@ -214,7 +275,9 @@ void write_basic(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i", (pos_cnt+neg_cnt), neg_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " 0 %i ", pos_cnt+neg_cnt);
+    
   if(pos_cnt || neg_cnt) {
     if(style == STYLE_READABLE || style == STYLE_GNT ||
        style == STYLE_DLV)
@@ -223,7 +286,7 @@ void write_basic(int style, FILE *out, RULE *rule, ATAB *table)
     write_literal_list(style, out, ", ",
 		       pos_cnt, basic->pos,
 		       neg_cnt, basic->neg,
-		       NULL, table);
+		       NULL, 0, table);
   }
 
   if(style == STYLE_READABLE || style == STYLE_GNT ||
@@ -244,7 +307,9 @@ void write_constraint(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, "2");
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "1 0 1 ");
+    
   write_atom(style, out, constraint->head, table);
 
   pos_cnt = constraint->pos_cnt;
@@ -253,7 +318,9 @@ void write_constraint(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i %i", (pos_cnt+neg_cnt), neg_cnt, bound);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " 1 %i %i ", bound, pos_cnt+neg_cnt);
+    
   if(style == STYLE_READABLE)
     fprintf(out, " :- %i {", bound);
 
@@ -261,7 +328,7 @@ void write_constraint(int style, FILE *out, RULE *rule, ATAB *table)
     write_literal_list(style, out, ", ",
 		       pos_cnt, constraint->pos,
 		       neg_cnt, constraint->neg,
-		       NULL, table);
+		       NULL, -1 /* Use weights = 1 */, table);
 
   if(style == STYLE_READABLE)
     fprintf(out, "}.");
@@ -287,7 +354,9 @@ void write_choice(int style, FILE *out, RULE *rule, ATAB *table)
     fprintf(out, "3 %i", head_cnt);
   else if(style == STYLE_READABLE)
     fprintf(out, "{");
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "1 1 %i ", head_cnt);
+    
   if(style == STYLE_GNT)
     separator = " | ";
   else if(style == STYLE_DLV)
@@ -296,14 +365,16 @@ void write_choice(int style, FILE *out, RULE *rule, ATAB *table)
   write_literal_list(style, out, separator,
 		     head_cnt, choice->head,
 		     0, NULL,
-		     NULL, table);
+		     NULL, 0, table);
 
   if(style == STYLE_READABLE)
     fprintf(out, "}");
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i", (pos_cnt+neg_cnt), neg_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " 0 %i ", pos_cnt+neg_cnt);
+    
   if(pos_cnt || neg_cnt) {
     if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
       fprintf(out, " :- ");
@@ -311,7 +382,7 @@ void write_choice(int style, FILE *out, RULE *rule, ATAB *table)
     write_literal_list(style, out, ", ",
 		       pos_cnt, choice->pos,
 		       neg_cnt, choice->neg,
-		       NULL, table);
+		       NULL, 0, table);
   }
 
   if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
@@ -332,13 +403,17 @@ void write_integrity(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, "4");
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "1 0 0 ");
+  
   pos_cnt = integrity->pos_cnt;
   neg_cnt = integrity->neg_cnt;
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i", (pos_cnt+neg_cnt), neg_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " 0 %i ", pos_cnt+neg_cnt);
+    
   if(pos_cnt || neg_cnt) {
     if(style == STYLE_READABLE || style == STYLE_GNT ||
        style == STYLE_DLV)
@@ -347,7 +422,7 @@ void write_integrity(int style, FILE *out, RULE *rule, ATAB *table)
     write_literal_list(style, out, ", ",
 		       pos_cnt, integrity->pos,
 		       neg_cnt, integrity->neg,
-		       NULL, table);
+		       NULL, 0, table);
   }
 
   if(style == STYLE_READABLE || style == STYLE_GNT ||
@@ -368,7 +443,9 @@ void write_weight(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, "5");
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "1 0 1 ");
+    
   write_atom(style, out, weight->head, table);
 
   pos_cnt = weight->pos_cnt;
@@ -377,7 +454,9 @@ void write_weight(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i %i", bound, (pos_cnt+neg_cnt), neg_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " 1 %i %i ", bound, pos_cnt+neg_cnt);
+    
   if(style == STYLE_READABLE)
     fprintf(out, " :- %i [", bound);
 
@@ -385,7 +464,7 @@ void write_weight(int style, FILE *out, RULE *rule, ATAB *table)
     write_literal_list(style, out, ", ",
 		       pos_cnt, weight->pos,
 		       neg_cnt, weight->neg,
-		       weight->weight, table);
+		       weight->weight, 0, table);
 
   if(style == STYLE_READABLE)
     fprintf(out, "].");
@@ -403,13 +482,17 @@ void write_optimize(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, "6 0");
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "2 %i", priority++);
+    
   pos_cnt = optimize->pos_cnt;
   neg_cnt = optimize->neg_cnt;
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i", (pos_cnt+neg_cnt), neg_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " %i ", pos_cnt+neg_cnt);
+    
   if(pos_cnt || neg_cnt) {
     if(style == STYLE_READABLE)
       fprintf(out, "minimize [");
@@ -417,7 +500,7 @@ void write_optimize(int style, FILE *out, RULE *rule, ATAB *table)
     write_literal_list(style, out, ", ",
 		       pos_cnt, optimize->pos,
 		       neg_cnt, optimize->neg,
-		       optimize->weight, table);
+		       optimize->weight, 0, table);
 
     if(style == STYLE_READABLE)
       fprintf(out, "].");
@@ -441,18 +524,22 @@ void write_disjunctive(int style, FILE *out, RULE *rule, ATAB *table)
 
   if(style == STYLE_SMODELS)
     fprintf(out, "8 %i", head_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "1 0 %i ", head_cnt);
+    
   if(style == STYLE_DLV)
     separator = " v ";
 
   write_literal_list(style, out, separator,
 		     head_cnt, disjunctive->head,
 		     0, NULL,
-		     NULL, table);
+		     NULL, 0, table);
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i", (pos_cnt+neg_cnt), neg_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " 0 %i ", pos_cnt+neg_cnt);
+    
   if(pos_cnt || neg_cnt) {
     if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
       fprintf(out, " :- ");
@@ -460,7 +547,7 @@ void write_disjunctive(int style, FILE *out, RULE *rule, ATAB *table)
     write_literal_list(style, out, ", ",
 		       pos_cnt, disjunctive->pos,
 		       neg_cnt, disjunctive->neg,
-		       NULL, table);
+		       NULL, 0, table);
   }
 
   if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
@@ -482,7 +569,9 @@ void write_clause_as_rule(int style, FILE *out, RULE *rule, ATAB *table1,
 
   if(style == STYLE_SMODELS)
     fprintf(out, "1");
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, "1 0 1 ");
+    
   write_atom(style, out, contradiction, table2);
 
   pos_cnt = clause->pos_cnt;
@@ -490,7 +579,9 @@ void write_clause_as_rule(int style, FILE *out, RULE *rule, ATAB *table1,
 
   if(style == STYLE_SMODELS)
     fprintf(out, " %i %i", (pos_cnt+neg_cnt), pos_cnt);
-
+  else if(style == STYLE_ASPIF)
+    fprintf(out, " 0 %i ", pos_cnt+neg_cnt);
+    
   if(pos_cnt || neg_cnt) {
     if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
       fprintf(out, " :- ");
@@ -498,7 +589,7 @@ void write_clause_as_rule(int style, FILE *out, RULE *rule, ATAB *table1,
     write_literal_list(style, out, ", ",
 		       neg_cnt, clause->neg,
 		       pos_cnt, clause->pos,
-		       NULL, table1);
+		       NULL, 0, table1);
       
   }
   if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV)
@@ -602,9 +693,12 @@ void write_symbols(int style, FILE *out, ATAB *table)
 
     for(i=1; i<=count; i++) {
       int atom = i+offset;
-
-      if(style == STYLE_READABLE || style == STYLE_GNT || style == STYLE_DLV) {
-
+      SYMBOL *name = names[i];
+      
+      switch(style) {
+      case STYLE_READABLE:
+      case STYLE_GNT:
+      case STYLE_DLV:
 	fprintf(out, "%% _%i = ", atom+shift);
 	write_atom(style, out, atom, table);
 	if(statuses[i]) {
@@ -612,10 +706,9 @@ void write_symbols(int style, FILE *out, ATAB *table)
 	  write_status(out, statuses[i]);
 	}
 	fprintf(out, "\n");
+	break;
 
-      } else if(style == STYLE_SMODELS) {
-	SYMBOL *name = names[i];
-
+      case STYLE_SMODELS:
 	/* Only atoms having a symbolic name are printed */
 
 	if(name) {
@@ -623,15 +716,27 @@ void write_symbols(int style, FILE *out, ATAB *table)
 	  write_atom(STYLE_READABLE, out, atom, table);
 	  fprintf(out, "\n");
 	}
+	break;
+	
+      case STYLE_ASPIF:
+	/* Only atoms having a symbolic name are printed */
 
-      } else if(style == STYLE_DIMACS) {
-	SYMBOL *name = names[i];
+	if(name)
+	  fprintf(out, "4 %i %s 1 %i\n",
+		  (int)strlen(name->name), name->name, atom+shift);
+	break;
 
+      case STYLE_DIMACS:
+	/* Only atoms having a symbolic name are printed in comments */
+	
 	if(name) {
 	  fprintf(out, "c %i ", atom+shift);
 	  write_atom(style, out, atom, table);
 	  fprintf(out, "\n");
 	}
+	break;
+      default:
+	break;
       }
     }
     table = table->next;
@@ -642,7 +747,7 @@ void write_symbols(int style, FILE *out, ATAB *table)
 void write_compute_statement(int style, FILE *out, ATAB *table, int mask)
 {
   int first = -1;
-
+  
   while(table) {
     int count = table->count;
     int offset = table->offset;
@@ -685,6 +790,15 @@ void write_compute_statement(int style, FILE *out, ATAB *table, int mask)
 	  fprintf(out, "%i\n", atom+shift);
 	  break;
 
+	case STYLE_ASPIF:
+	  if((mask & MARK_TRUE) & status)
+	    fprintf(out, "6 1 %i\n", atom+shift);
+	  if((mask & MARK_FALSE) & status)
+	    fprintf(out, "6 1 -%i\n", atom+shift);
+	  if((mask & MARK_INPUT) & status)
+	    fprintf(out, "5 %i 0\n", atom+shift);
+	  break;
+	  
 	case STYLE_DLV:
 	  if((mask & MARK_TRUE) & status) {
 	    fprintf(out, ":- not ");
@@ -737,6 +851,8 @@ void write_input(int style, FILE *out, ATAB *table)
 
     if(style == STYLE_SMODELS)
       fprintf(out, "3 %i", head_count);
+    else if(style == STYLE_ASPIF)
+      fprintf(out, "1 1 %i", head_count);
     else
       fprintf(out, "{ ");
 
@@ -754,6 +870,8 @@ void write_input(int style, FILE *out, ATAB *table)
 	int atom = i+offset;
 
 	if(names[i] && (statuses[i] & MARK_INPUT)) {
+	  if(style == STYLE_ASPIF)
+	    fputs(" ", out);
 	  write_atom(style, out, atom, table);
 	  if(style == STYLE_READABLE && (--head_count))
 	    fprintf(out, ", ");
@@ -765,9 +883,8 @@ void write_input(int style, FILE *out, ATAB *table)
 
     if(style == STYLE_READABLE)
       fprintf(out, " }.\n");
-    else
+    else if(style == STYLE_SMODELS || style == STYLE_ASPIF)
       fprintf(out, " 0 0\n");
-
   }
 
   return;

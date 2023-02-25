@@ -21,12 +21,12 @@
 /*
  * Data structures related to atoms
  *
- * (c) 2006-2021 Tomi Janhunen
+ * (c) 2006-2023 Tomi Janhunen
  */
 
 #define _ATOM_H_RCSFILE  "$RCSfile: atom.h,v $"
-#define _ATOM_H_DATE     "$Date: 2021/05/27 09:21:23 $"
-#define _ATOM_H_REVISION "$Revision: 1.18 $"
+#define _ATOM_H_DATE     "$Date: 2023/02/25 13:23:06 $"
+#define _ATOM_H_REVISION "$Revision: 1.19 $"
 
 extern void _version_atom_c();
 
@@ -149,4 +149,5 @@ void qdef(int atom, AQUEUE *q);
 void qstr(char *name, AQUEUE *q);
 void qidx(int idx, AQUEUE *q);
 void qatom(int atom, ATAB *table, AQUEUE *q);
+int qelen(QELEM *q);
 QELEM *print_elem(FILE *out, QELEM *q);

@@ -21,12 +21,12 @@
 /*
  * Definitions related with input and output routines
  *
- * (c) 2005-2021 Tomi Janhunen
+ * (c) 2005-2023 Tomi Janhunen
  */
 
 #define _IO_H_RCSFILE  "$RCSfile: io.h,v $"
-#define _IO_H_DATE     "$Date: 2021/05/27 10:55:02 $"
-#define _IO_H_REVISION "$Revision: 1.14 $"
+#define _IO_H_DATE     "$Date: 2023/02/25 13:28:28 $"
+#define _IO_H_REVISION "$Revision: 1.15 $"
 
 extern void _version_input_c();
 extern void _version_output_c();
@@ -54,10 +54,13 @@ extern RULE *read_cnf(FILE *in, ATAB **table, int *weighted);
 #define STYLE_READABLE 1  /* Symbolic smodels/dimacs format */
 #define STYLE_SMODELS  2  /* Internal smodels format */
 #define STYLE_DIMACS   3  /* Internal dimacs format */
-#define STYLE_GNT      4  /* Symbolic gnt format */
-#define STYLE_DLV      5  /* Symbolic dlv format */
+#define STYLE_ASPIF    4  /* Internal clasp format */
+#define STYLE_GNT      5  /* Symbolic gnt format */
+#define STYLE_DLV      6  /* Symbolic dlv format */
 
 extern void _version_output_c();
+
+extern int atomlen(int atom, ATAB *table);
 
 extern void write_name(FILE *out, SYMBOL *s, char *prefix, char *postfix);
 

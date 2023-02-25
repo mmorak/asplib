@@ -21,7 +21,7 @@
 /*
  * Routines related to atom tables
  *
- * (c) 2005-2021 Tomi Janhunen
+ * (c) 2005-2023 Tomi Janhunen
  */
 
 #include <string.h>
@@ -45,8 +45,8 @@ void _version_atom_c()
 {
   _version_atom_h();
   _version("$RCSfile: atom.c,v $",
-	   "$Date: 2021/05/27 07:54:50 $",
-	   "$Revision: 1.18 $");
+	   "$Date: 2023/02/25 13:22:17 $",
+	   "$Revision: 1.19 $");
 }
 
 /* ------------------------ Handling atom tables --------------------------- */
@@ -719,6 +719,32 @@ void qatom(int atom, ATAB *table, AQUEUE *q)
   add_element(q, e);
 
   return;
+}
+
+int qelen(QELEM *q)
+{
+  int len = 0;
+
+  /* Precalculate the length of queue elements for printing */
+
+  while(q && q->etype !=AQ_DEF) {
+    switch(q->etype) {
+    case AQ_STR:
+      len += strlen(q->elem.string);
+      break;
+
+    case AQ_IDX:
+      len += log10i(q->elem.index);
+      break;
+
+    case AQ_ATM:
+      len += atomlen(q->elem.aref->atom, q->elem.aref->table);
+      break;
+    }
+    q = q->next;
+  }
+
+  return len;
 }
 
 QELEM *print_elem(FILE *out, QELEM *q)

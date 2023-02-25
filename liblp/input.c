@@ -21,7 +21,7 @@
 /*
  * Input routines for a number of programs manipulating smodels programs
  *
- * (c) 2002-2014 Tomi Janhunen
+ * (c) 2002-2023 Tomi Janhunen
  */
 
 #include <stdlib.h>
@@ -49,8 +49,8 @@ void _version_input_c()
 {
   _version_io_h();
   _version("$RCSfile: input.c,v $",
-	   "$Date: 2021/05/27 07:55:06 $",
-	   "$Revision: 1.32 $");
+	   "$Date: 2023/02/25 13:26:44 $",
+	   "$Revision: 1.33 $");
 }
 
 /* ------------------------- Low level routines ---------------------------- */
@@ -941,16 +941,6 @@ RULE *read_clause(FILE *in, int weighted)
   read_literals(in, clause, weighted);
 
   return new;
-}
-
-int digits(int n)
-{
-  if(n<0)
-    return digits(-n)+1;
-  else if(n>9)
-    return digits(n/10)+1;
-
-  return 1;
 }
 
 ATAB *initialize_cnf(FILE *in, int *clauses, int *weighted)
