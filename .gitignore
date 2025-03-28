@@ -1,0 +1,29 @@
+# build artifacts
+*~
+*.o
+*.lo
+*.dirstamp
+
+# built binaries etc.
+len
+liblp.a
+liblp.la
+lplist
+lpstrip
+
+# generated files and folders
+.deps/
+.libs/
+Makefile
+Makefile.in
+aclocal.m4
+autom4te.cache/
+build-aux/
+config.h
+config.h.in
+config.log
+config.status
+configure
+libtool
+m4/
+stamp-h1
